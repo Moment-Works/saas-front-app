@@ -5,6 +5,7 @@ import {
   text,
   timestamp,
   integer,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
@@ -14,6 +15,7 @@ export const users = pgTable('users', {
   email: varchar('email', { length: 255 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: varchar('role', { length: 20 }).notNull().default('member'),
+  location: varchar('location', { length: 255 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
   deletedAt: timestamp('deleted_at'),
@@ -140,3 +142,55 @@ export enum ActivityType {
   INVITE_TEAM_MEMBER = 'INVITE_TEAM_MEMBER',
   ACCEPT_INVITATION = 'ACCEPT_INVITATION',
 }
+
+// Consultants table for Moment Works
+export const consultants = pgTable('consultants', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  title: text('title'),
+  bio: text('bio'),
+  expertise: text('expertise').array(),
+  price30min: integer('price_30min').notNull(),
+  imageUrl: text('image_url'),
+  paymentLink: text('payment_link'),
+  meetUrl: text('meet_url'),
+  email: text('email').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// Bookings table for Moment Works
+export const bookings = pgTable('bookings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  consultantId: uuid('consultant_id')
+    .notNull()
+    .references(() => consultants.id),
+  clientName: text('client_name').notNull(),
+  clientEmail: text('client_email').notNull(),
+  message: text('message'),
+  preferredDates: text('preferred_dates').array(),
+  confirmedDate: timestamp('confirmed_date'),
+  status: text('status').notNull().default('pending'),
+  stripeSessionId: text('stripe_session_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+});
+
+// Relations for consultants
+export const consultantsRelations = relations(consultants, ({ many }) => ({
+  bookings: many(bookings),
+}));
+
+// Relations for bookings
+export const bookingsRelations = relations(bookings, ({ one }) => ({
+  consultant: one(consultants, {
+    fields: [bookings.consultantId],
+    references: [consultants.id],
+  }),
+}));
+
+// Types for consultants
+export type Consultant = typeof consultants.$inferSelect;
+export type NewConsultant = typeof consultants.$inferInsert;
+
+// Types for bookings
+export type Booking = typeof bookings.$inferSelect;
+export type NewBooking = typeof bookings.$inferInsert;

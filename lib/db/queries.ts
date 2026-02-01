@@ -1,6 +1,13 @@
 import { desc, and, eq, isNull } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users } from './schema';
+import {
+  activityLogs,
+  teamMembers,
+  teams,
+  users,
+  consultants,
+  bookings,
+} from './schema';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth/session';
 
@@ -53,13 +60,13 @@ export async function updateTeamSubscription(
     stripeProductId: string | null;
     planName: string | null;
     subscriptionStatus: string;
-  }
+  },
 ) {
   await db
     .update(teams)
     .set({
       ...subscriptionData,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     })
     .where(eq(teams.id, teamId));
 }
@@ -68,7 +75,7 @@ export async function getUserWithTeam(userId: number) {
   const result = await db
     .select({
       user: users,
-      teamId: teamMembers.teamId
+      teamId: teamMembers.teamId,
     })
     .from(users)
     .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
@@ -90,7 +97,7 @@ export async function getActivityLogs() {
       action: activityLogs.action,
       timestamp: activityLogs.timestamp,
       ipAddress: activityLogs.ipAddress,
-      userName: users.name
+      userName: users.name,
     })
     .from(activityLogs)
     .leftJoin(users, eq(activityLogs.userId, users.id))
@@ -116,15 +123,30 @@ export async function getTeamForUser() {
                 columns: {
                   id: true,
                   name: true,
-                  email: true
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   });
 
   return result?.team || null;
+}
+
+// Consultant queries
+export async function getConsultants() {
+  return await db.select().from(consultants).orderBy(consultants.createdAt);
+}
+
+export async function getConsultantById(id: string) {
+  const result = await db
+    .select()
+    .from(consultants)
+    .where(eq(consultants.id, id))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
 }

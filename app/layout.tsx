@@ -5,35 +5,36 @@ import { getUser, getTeamForUser } from '@/lib/db/queries';
 import { SWRConfig } from 'swr';
 
 export const metadata: Metadata = {
-  title: 'Next.js SaaS Starter',
-  description: 'Get started quickly with Next.js, Postgres, and Stripe.'
+  title: 'Moment Works - プロフェッショナルコンサルタントマッチング',
+  description:
+    '経験豊富なコンサルタントとオンラインで相談。あなたの課題解決をサポートします。',
 };
 
 export const viewport: Viewport = {
-  maximumScale: 1
+  maximumScale: 1,
 };
 
 const manrope = Manrope({ subsets: ['latin'] });
 
 export default function RootLayout({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <html
-      lang="en"
+      lang='en'
       className={`bg-white dark:bg-gray-950 text-black dark:text-white ${manrope.className}`}
     >
-      <body className="min-h-[100dvh] bg-gray-50">
+      <body className='min-h-[100dvh] bg-gray-50'>
         <SWRConfig
           value={{
             fallback: {
               // We do NOT await here
               // Only components that read this data will suspend
               '/api/user': getUser(),
-              '/api/team': getTeamForUser()
-            }
+              '/api/team': getTeamForUser(),
+            },
           }}
         >
           {children}
