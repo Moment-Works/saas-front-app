@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -7,8 +8,19 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { getRecentBlogs } from '@/lib/microcms/client';
+import { Blog } from '@/lib/microcms/types';
 
-export default function HomePage() {
+export default async function HomePage() {
+  // Fetch recent blog posts from microCMS
+  let recentBlogs: Blog[] = [];
+  try {
+    recentBlogs = await getRecentBlogs(3);
+  } catch (error) {
+    console.error('Failed to fetch blogs:', error);
+    // Continue with empty array if fetch fails
+  }
+
   return (
     <main className='flex-1'>
       {/* Hero Section */}
@@ -86,22 +98,63 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Placeholder for blog posts - will be populated with microCMS data */}
           <div className='grid md:grid-cols-3 gap-8'>
-            {[1, 2, 3].map((i) => (
-              <Card key={i} className='hover:shadow-lg transition-shadow'>
-                <CardHeader>
-                  <div className='aspect-video bg-gray-200 rounded-lg mb-4' />
-                  <CardTitle className='text-lg'>記事タイトル {i}</CardTitle>
-                  <CardDescription>2024.01.0{i}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className='text-sm text-gray-600 line-clamp-3'>
-                    記事の概要がここに表示されます。microCMSから取得したコンテンツが表示される予定です。
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+            {recentBlogs.length > 0 ? (
+              recentBlogs.map((blog) => (
+                <Link key={blog.id} href={`/blog/${blog.id}`} className='block'>
+                  <Card className='hover:shadow-lg transition-shadow h-full'>
+                    <CardHeader>
+                      {blog.eyecatch?.url ? (
+                        <div className='aspect-video relative bg-gray-200 rounded-lg mb-4 overflow-hidden'>
+                          <Image
+                            src={blog.eyecatch.url}
+                            alt={blog.title}
+                            fill
+                            className='object-cover'
+                          />
+                        </div>
+                      ) : (
+                        <div className='aspect-video bg-gray-200 rounded-lg mb-4' />
+                      )}
+                      <CardTitle className='text-lg'>{blog.title}</CardTitle>
+                      <CardDescription>
+                        {new Date(blog.publishedAt).toLocaleDateString(
+                          'ja-JP',
+                          {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                          },
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {blog.categories && blog.categories.length > 0 && (
+                        <div className='flex flex-wrap gap-2 mb-2'>
+                          {blog.categories.map((cat) => (
+                            <span
+                              key={cat.id}
+                              className='inline-block px-2 py-1 text-xs font-medium text-orange-600 bg-orange-50 rounded'
+                            >
+                              {cat.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <p className='text-sm text-gray-600 line-clamp-3'>
+                        {blog.content.replace(/<[^>]*>/g, '').substring(0, 100)}
+                        ...
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))
+            ) : (
+              // Fallback if no blogs are available
+              <div className='col-span-3 text-center py-8 text-gray-500'>
+                記事はまだ公開されていません
+              </div>
+            )}
           </div>
         </div>
       </section>

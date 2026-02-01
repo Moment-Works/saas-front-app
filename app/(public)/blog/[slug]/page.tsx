@@ -1,24 +1,21 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { getBlogBySlug, getBlogs } from '@/lib/microcms/client';
+import { Blog } from '@/lib/microcms/types';
 
-// This will be replaced with actual microCMS data fetching
-async function getBlogPost(slug: string) {
-  // TODO: Fetch from microCMS
-  // const post = await fetch(`https://your-service.microcms.io/api/v1/blogs/${slug}`, {
-  //   headers: { 'X-MICROCMS-API-KEY': process.env.MICROCMS_API_KEY! }
-  // }).then(res => res.json());
-
-  // Mock data for now
-  return {
-    id: slug,
-    title: 'ブログ記事のタイトル',
-    content:
-      '<p>記事の本文がここに表示されます。microCMSから取得したHTMLコンテンツがレンダリングされます。</p>',
-    thumbnail: { url: '' },
-    publishedAt: '2024-01-01T00:00:00.000Z',
-    category: 'ビジネス',
-  };
+// Generate static params for blog posts
+export async function generateStaticParams() {
+  try {
+    const response = await getBlogs({ limit: 100 });
+    return response.contents.map((blog) => ({
+      slug: blog.id,
+    }));
+  } catch (error) {
+    console.error('Failed to generate static params:', error);
+    return [];
+  }
 }
 
 export default async function BlogDetailPage({
@@ -27,10 +24,39 @@ export default async function BlogDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const post = await getBlogPost(slug);
+
+  let post: Blog | null = null;
+  try {
+    post = await getBlogBySlug(slug);
+  } catch (error) {
+    console.error('Failed to fetch blog post:', error);
+  }
 
   if (!post) {
     notFound();
+  }
+
+  // Fetch related blogs (same category if available)
+  let relatedBlogs: Blog[] = [];
+  try {
+    const categoryId = post.categories?.[0]?.id;
+    if (categoryId) {
+      const response = await getBlogs({
+        limit: 3,
+        filters: `categories[contains]${categoryId}[and]id[not_equals]${post.id}`,
+      });
+      relatedBlogs = response.contents;
+    } else {
+      // If no category, just get recent posts
+      const response = await getBlogs({
+        limit: 3,
+        filters: `id[not_equals]${post.id}`,
+        orders: '-publishedAt',
+      });
+      relatedBlogs = response.contents;
+    }
+  } catch (error) {
+    console.error('Failed to fetch related blogs:', error);
   }
 
   return (
@@ -51,11 +77,18 @@ export default async function BlogDetailPage({
 
         {/* Article Header */}
         <header className='mb-8'>
-          <div className='mb-4'>
-            <span className='inline-block px-3 py-1 text-sm font-medium text-orange-600 bg-orange-50 rounded-full'>
-              {post.category}
-            </span>
-          </div>
+          {post.categories && post.categories.length > 0 && (
+            <div className='mb-4 flex flex-wrap gap-2'>
+              {post.categories.map((category) => (
+                <span
+                  key={category.id}
+                  className='inline-block px-3 py-1 text-sm font-medium text-orange-600 bg-orange-50 rounded-full'
+                >
+                  {category.name}
+                </span>
+              ))}
+            </div>
+          )}
           <h1 className='text-4xl font-bold text-gray-900 mb-4'>
             {post.title}
           </h1>
@@ -69,8 +102,15 @@ export default async function BlogDetailPage({
         </header>
 
         {/* Featured Image */}
-        {post.thumbnail?.url && (
-          <div className='aspect-video bg-gray-200 rounded-lg mb-8' />
+        {post.eyecatch?.url && (
+          <div className='aspect-video relative bg-gray-200 rounded-lg mb-8 overflow-hidden'>
+            <Image
+              src={post.eyecatch.url}
+              alt={post.title}
+              fill
+              className='object-cover'
+            />
+          </div>
         )}
 
         {/* Article Content */}
@@ -99,23 +139,46 @@ export default async function BlogDetailPage({
       <section className='bg-gray-50 py-12'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <h2 className='text-2xl font-bold text-gray-900 mb-8'>関連記事</h2>
-          <div className='grid md:grid-cols-3 gap-6'>
-            {[1, 2, 3].map((i) => (
-              <Link
-                key={i}
-                href={`/blog/related-${i}`}
-                className='block bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden'
-              >
-                <div className='aspect-video bg-gray-200' />
-                <div className='p-4'>
-                  <h3 className='font-semibold text-gray-900 mb-2'>
-                    関連記事のタイトル {i}
-                  </h3>
-                  <time className='text-sm text-gray-600'>2024.01.0{i}</time>
-                </div>
-              </Link>
-            ))}
-          </div>
+          {relatedBlogs.length > 0 ? (
+            <div className='grid md:grid-cols-3 gap-6'>
+              {relatedBlogs.map((blog) => (
+                <Link
+                  key={blog.id}
+                  href={`/blog/${blog.id}`}
+                  className='block bg-white rounded-lg shadow hover:shadow-lg transition-shadow overflow-hidden'
+                >
+                  {blog.eyecatch?.url ? (
+                    <div className='aspect-video relative bg-gray-200'>
+                      <Image
+                        src={blog.eyecatch.url}
+                        alt={blog.title}
+                        fill
+                        className='object-cover'
+                      />
+                    </div>
+                  ) : (
+                    <div className='aspect-video bg-gray-200' />
+                  )}
+                  <div className='p-4'>
+                    <h3 className='font-semibold text-gray-900 mb-2'>
+                      {blog.title}
+                    </h3>
+                    <time className='text-sm text-gray-600'>
+                      {new Date(blog.publishedAt).toLocaleDateString('ja-JP', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                      })}
+                    </time>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className='text-gray-500 text-center py-8'>
+              関連記事はありません
+            </p>
+          )}
         </div>
       </section>
     </main>
